@@ -26,7 +26,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,7 +37,16 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define ADC_VREF            3.3f
+#define ADC_MAX             4096.0f
 
+#define OPAMP_GAIN          0.833f
+#define SENSOR_OFFSET_V     0.5f
+#define SENSOR_SENSITIVITY  0.100f // Change this (based on the datasheet)
+
+#define NUM_SAMPLES         16
+#define SAMPLE_DELAY_MS     10
+#define CAN_TX_INTERVAL_MS  100
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,7 +57,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+float current_amps = 0.0f;
+uint32_t last_can_tx_time = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,7 +69,47 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+// Return raw ADC voltage (0-3.3)
+float ReadADC(void) {
+  uint32_t raw = 0;
 
+  HAL_ADC_Start(&hadc1);
+  if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK) {
+    raw = HAL_ADC_GetValue(&hadc1);
+  }
+
+  HAL_ADC_Stop(&hadc1);
+  return (raw*ADC_VREF) / ADC_MAX;
+}
+
+// Undo gain and calculate current from sensitivity
+float GetCurrent(float adc_voltage) {
+  float sensor_voltage = adc_voltage / OPAMP_GAIN;
+  float current = sensor_voltage / SENSOR_SENSITIVITY;
+  return current;
+}
+
+// Send current over CAN
+void SendCAN(float current) {
+    FDCAN_TxHeaderTypeDef TxHeader = {0};
+    uint8_t TxData[8];
+
+    TxHeader.Identifier = 0x100;
+    TxHeader.IdType = FDCAN_STANDARD_ID;
+    TxHeader.TxFrameType = FDCAN_DATA_FRAME;
+    TxHeader.DataLength = FDCAN_DLC_BYTES_8;
+    TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+    TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+    TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+    TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+    TxHeader.MessageMarker = 0;
+
+    memcpy(&TxData[0], &current, 4);
+    uint32_t timestamp = HAL_GetTick();
+    memcpy(&TxData[4], &timestamp, 4);
+
+    HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, TxData);
+}
 /* USER CODE END 0 */
 
 /**
@@ -95,13 +146,59 @@ int main(void)
   MX_ADC1_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  // Setup can filters
+  FDCAN_FilterTypeDef sFilterConfig = {0};
+  sFilterConfig.IdType = FDCAN_STANDARD_ID;
+  sFilterConfig.FilterIndex = 0;
+  sFilterConfig.FilterType = FDCAN_FILTER_RANGE;
+  sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
+  sFilterConfig.FilterID1 = 0x000;
+  sFilterConfig.FilterID2 = 0x7FF;
 
+  if (HAL_FDCAN_ConfigFilter(&hfdcan1, &sFilterConfig) != HAL_OK) {
+    Error_Handler();
+  }
+
+  if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1,
+                                    FDCAN_ACCEPT_IN_RX_FIFO0,
+                                    FDCAN_REJECT,
+                                    DISABLE,
+                                    DISABLE) != HAL_OK) {
+      Error_Handler();
+  }
+
+  if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK) {
+      Error_Handler();
+  }
+
+  char msg[] = "Current Sensor Ready\r\n";
+  HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), 100);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    float voltage_sum = 0.0f;
+    for (int i = 0; i < NUM_SAMPLES; i++) {
+      voltage_sum += ReadADC();
+      HAL_Delay(SAMPLE_DELAY_MS);
+    }
+    float avg_voltage = voltage_sum / NUM_SAMPLES;
+
+    current_amps = GetCurrent(avg_voltage);
+
+    // Step 3: Debug print over UART
+    char debug[64];
+    snprintf(debug, sizeof(debug), "V=%.3f I=%.2fA\r\n", avg_voltage, current_amps);
+    HAL_UART_Transmit(&huart2, (uint8_t *)debug, strlen(debug), 100);
+
+    // Step 4: Send over CAN every 100ms
+    if ((HAL_GetTick() - last_can_tx_time) >= CAN_TX_INTERVAL_MS) {
+        SendCAN(current_amps);
+        last_can_tx_time = HAL_GetTick();
+    }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

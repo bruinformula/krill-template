@@ -50,7 +50,6 @@ void FDCAN_Receive_Callback(FDCAN_HandleTypeDef *hfdcan);
 #ifdef __cplusplus
 }
 #endif
-#endif
 
 #endif /* __FDCAN_H__ */
 
