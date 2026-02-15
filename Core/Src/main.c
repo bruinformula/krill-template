@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "dma.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -53,7 +54,11 @@ int time;
 int voltage_mv;
 float voltage_sum;
 float avg_voltage;
+float voltage;
 uint32_t raw;
+volatile uint16_t AD_RES[2];
+volatile uint8_t halfComplete = 0;
+volatile uint8_t fullComplete = 0;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -72,16 +77,35 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 // Return raw ADC voltage (0-3.3)
+//float ReadADC(void) {
+//  raw = 0;
+//
+//  HAL_ADC_Start(&hadc1);
+//  if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK) {
+//    raw = HAL_ADC_GetValue(&hadc1);
+//  }
+//
+//  HAL_ADC_Stop(&hadc1);
+//  return (raw*ADC_VREF) / ADC_MAX;
+//}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+	fullComplete = 1;
+}
+
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc) {
+	halfComplete = 1;
+}
+
+void StartADC_DMA(void) {
+	halfComplete = 0;
+	fullComplete = 0;
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t *)AD_RES, 2);
+}
+
 float ReadADC(void) {
-  raw = 0;
-
-  HAL_ADC_Start(&hadc1);
-  if (HAL_ADC_PollForConversion(&hadc1, 100) == HAL_OK) {
-    raw = HAL_ADC_GetValue(&hadc1);
-  }
-
-  HAL_ADC_Stop(&hadc1);
-  return (raw*ADC_VREF) / ADC_MAX;
+  uint16_t avg = (AD_RES[0] + AD_RES[1]) / 2;
+  return (avg * ADC_VREF) / ADC_MAX;
 }
 
 // Undo gain and calculate current from sensitivity
@@ -143,9 +167,11 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+  StartADC_DMA();
   // Setup can filters
   // FDCAN_FilterTypeDef sFilterConfig = {0};
   // sFilterConfig.IdType = FDCAN_STANDARD_ID;
@@ -180,6 +206,7 @@ int main(void)
   while (1)
   {
     voltage_sum = 0.0f;
+#if 0
     for (int i = 0; i < NUM_SAMPLES; i++) {
       voltage_sum += ReadADC();
       HAL_Delay(SAMPLE_DELAY_MS);
@@ -187,6 +214,18 @@ int main(void)
     avg_voltage = voltage_sum / NUM_SAMPLES;
 
     current_amps = GetCurrent(avg_voltage);
+#endif
+
+    if (halfComplete) {
+    	halfComplete = 0;
+    	StartADC_DMA();
+    }
+
+    if (fullComplete) {
+    	voltage = ReadADC();
+    	fullComplete = 0;
+    	StartADC_DMA();
+    }
 
     char uart_buf[100];
 
@@ -197,7 +236,7 @@ int main(void)
 //    printf("Voltage: %d mV\r\n", voltage_mv);
 
     time += 1;
-    HAL_Delay(1);
+//    HAL_Delay(1);
 
     // // Step 3: Debug print over UART
     // char debug[64];
