@@ -47,22 +47,23 @@
 #define SENSOR_SENSITIVITY  0.100f // Change this (based on the datasheet)
 
 #define NUM_SAMPLES         8
-#define SAMPLE_DELAY_MS     10
 #define CAN_TX_INTERVAL_MS  100
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-volatile int time;
-volatile float voltage;
-volatile float current;
-volatile uint16_t AD_RES[NUM_SAMPLES];
-volatile uint8_t adc_ready = 0;
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+volatile int time;
+volatile float voltage;
+volatile float current;
+volatile uint16_t AD_RES[NUM_SAMPLES];
+volatile uint8_t adc_ready = 0;
+
 FDCAN_TxHeaderTypeDef TxHeader;
 uint8_t TxData[4];
 uint32_t last_can_tx_time = 0;
@@ -135,6 +136,7 @@ int main(void)
   MX_I2C1_Init();
   MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)AD_RES, NUM_SAMPLES);
 
   HAL_FDCAN_Start(&hfdcan1);
