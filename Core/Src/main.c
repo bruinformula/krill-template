@@ -63,8 +63,10 @@ volatile uint8_t adc_ready = 0;
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-float current_amps = 0.0f;
-// uint32_t last_can_tx_time = 0;
+FDCAN_TxHeaderTypeDef TxHeader;
+uint8_t TxData[4];
+uint32_t last_can_tx_time = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -85,9 +87,9 @@ float ReadADC(void) {
 }
 
 // Undo gain and calculate current from sensitivity
-float GetCurrent(float adc_voltage) {
+void SetCurrent(float adc_voltage) {
   float sensor_voltage = adc_voltage / OPAMP_GAIN;
-  return current = sensor_voltage / SENSOR_SENSITIVITY;
+  current = (sensor_voltage - SENSOR_OFFSET_V) / SENSOR_SENSITIVITY;
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
@@ -135,6 +137,13 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)AD_RES, NUM_SAMPLES);
 
+  HAL_FDCAN_Start(&hfdcan1);
+  TxHeader.Identifier = 0x6A; // Probably gotta maybe perhaps change
+  TxHeader.IdType = FDCAN_STANDARD_ID;
+  TxHeader.TxFrameType = FDCAN_DATA_FRAME;
+  TxHeader.DataLength = FDCAN_DLC_BYTES_4;
+  TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -144,7 +153,15 @@ int main(void)
     if (adc_ready) {
       adc_ready = 0;
       voltage = ReadADC();
-      current = GetCurrent(voltage);
+      SetCurrent(voltage);
+
+      uint32_t now = HAL_GetTick();
+      if ((now - last_can_tx_time) >= CAN_TX_INTERVAL_MS) {
+        last_can_tx_time = now;
+        memcpy(TxData, &current, 4);
+        HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, TxData);
+      }
+
       time += 1;
     }
     /* USER CODE END WHILE */
