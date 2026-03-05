@@ -1,0 +1,7 @@
+../Core/Src/sh1106.c:112:13:SH1106_WriteCommand	32	static
+../Core/Src/sh1106.c:116:6:SH1106_Init	16	static
+../Core/Src/sh1106.c:141:6:SH1106_Fill	16	static
+../Core/Src/sh1106.c:145:6:SH1106_DrawPixel	16	static
+../Core/Src/sh1106.c:153:6:SH1106_WriteChar	40	static
+../Core/Src/sh1106.c:179:6:SH1106_WriteString	24	static
+../Core/Src/sh1106.c:197:6:SH1106_UpdateScreen	40	static
