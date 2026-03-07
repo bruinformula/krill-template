@@ -59,6 +59,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define STLINK_TX_Pin GPIO_PIN_2
 #define STLINK_TX_GPIO_Port GPIOA
+#define STLINK_RX_Pin GPIO_PIN_3
+#define STLINK_RX_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 
