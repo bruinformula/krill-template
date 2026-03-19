@@ -28,7 +28,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "sh1106.h"
+#include "SH1106.h"
+#include "bitmap.h"
+#include "fonts.h"
 #include <string.h>
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -49,7 +51,7 @@
 
 #define NUM_SAMPLES         8
 #define CAN_TX_INTERVAL_MS  100
-#define DISPLAY_UPDATE_MS  200
+#define DISPLAY_UPDATE_MS   200
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -149,8 +151,13 @@ int main(void)
   TxHeader.DataLength = FDCAN_DLC_BYTES_4;
   TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
 
-  SH1106_Init(&hi2c1);
-
+  SH1106_Init();
+  SH1106_GotoXY(2, 0);
+  SH1106_Puts("Initializing...", &Font_7x10, 1);
+  SH1106_DrawBitmap(2, 15, bfr_logo, 64, 64, 1);
+  SH1106_UpdateScreen();
+  HAL_Delay(1000);
+  SH1106_Clear();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -165,11 +172,11 @@ int main(void)
 
       if ((now - last_display_time) >= DISPLAY_UPDATE_MS) {
           last_display_time = now;
-          char buf[20];
-          sprintf(buf, "%.2f A", current);
-          SH1106_Fill(0);
-          SH1106_WriteString(0, 0, buf, 1);
-          SH1106_UpdateScreen(&hi2c1);
+          char buffer[20];
+          snprintf(buffer, sizeof(buffer), "Current: %.2f A", current);
+          SH1106_GotoXY(2, 0);
+          SH1106_Puts(buffer, &Font_7x10, 1);
+          SH1106_UpdateScreen();
       }
 
       if ((now - last_can_tx_time) >= CAN_TX_INTERVAL_MS) {

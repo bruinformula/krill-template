@@ -1,205 +1,558 @@
-/*
- * sh1106.c
- *
- *  Created on: Mar 2, 2026
- *      Author: Krishay Bhople
+/**
+ * original author:  Tilen Majerle<tilen@majerle.eu>
+ * modification for SH1106: ControllersTech (www.controllerstech.com)
+ * modified: Krishay Bhople
+
+   ----------------------------------------------------------------------
+   	Copyright (C) Alexander Lutsai, 2016
+    Copyright (C) Tilen Majerle, 2015
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+   ----------------------------------------------------------------------
  */
+#include "SH1106.h"
 
-#include "sh1106.h"
-#include <string.h>
+extern I2C_HandleTypeDef hi2c1;
+#define SH1106_I2C &hi2c1
 
-/* 5x7 ASCII font, characters 32 (space) through 126 (~) */
-static const uint8_t Font5x7[][5] = {
-    {0x00,0x00,0x00,0x00,0x00}, // 32 (space)
-    {0x00,0x00,0x5F,0x00,0x00}, // 33 !
-    {0x00,0x07,0x00,0x07,0x00}, // 34 "
-    {0x14,0x7F,0x14,0x7F,0x14}, // 35 #
-    {0x24,0x2A,0x7F,0x2A,0x12}, // 36 $
-    {0x23,0x13,0x08,0x64,0x62}, // 37 %
-    {0x36,0x49,0x55,0x22,0x50}, // 38 &
-    {0x00,0x05,0x03,0x00,0x00}, // 39 '
-    {0x00,0x1C,0x22,0x41,0x00}, // 40 (
-    {0x00,0x41,0x22,0x1C,0x00}, // 41 )
-    {0x08,0x2A,0x1C,0x2A,0x08}, // 42 *
-    {0x08,0x08,0x3E,0x08,0x08}, // 43 +
-    {0x00,0x50,0x30,0x00,0x00}, // 44 ,
-    {0x08,0x08,0x08,0x08,0x08}, // 45 -
-    {0x00,0x60,0x60,0x00,0x00}, // 46 .
-    {0x20,0x10,0x08,0x04,0x02}, // 47 /
-    {0x3E,0x51,0x49,0x45,0x3E}, // 48 0
-    {0x00,0x42,0x7F,0x40,0x00}, // 49 1
-    {0x42,0x61,0x51,0x49,0x46}, // 50 2
-    {0x21,0x41,0x45,0x4B,0x31}, // 51 3
-    {0x18,0x14,0x12,0x7F,0x10}, // 52 4
-    {0x27,0x45,0x45,0x45,0x39}, // 53 5
-    {0x3C,0x4A,0x49,0x49,0x30}, // 54 6
-    {0x01,0x71,0x09,0x05,0x03}, // 55 7
-    {0x36,0x49,0x49,0x49,0x36}, // 56 8
-    {0x06,0x49,0x49,0x29,0x1E}, // 57 9
-    {0x00,0x36,0x36,0x00,0x00}, // 58 :
-    {0x00,0x56,0x36,0x00,0x00}, // 59 ;
-    {0x00,0x08,0x14,0x22,0x41}, // 60 <
-    {0x14,0x14,0x14,0x14,0x14}, // 61 =
-    {0x41,0x22,0x14,0x08,0x00}, // 62 >
-    {0x02,0x01,0x51,0x09,0x06}, // 63 ?
-    {0x32,0x49,0x79,0x41,0x3E}, // 64 @
-    {0x7E,0x11,0x11,0x11,0x7E}, // 65 A
-    {0x7F,0x49,0x49,0x49,0x36}, // 66 B
-    {0x3E,0x41,0x41,0x41,0x22}, // 67 C
-    {0x7F,0x41,0x41,0x22,0x1C}, // 68 D
-    {0x7F,0x49,0x49,0x49,0x41}, // 69 E
-    {0x7F,0x09,0x09,0x01,0x01}, // 70 F
-    {0x3E,0x41,0x41,0x51,0x32}, // 71 G
-    {0x7F,0x08,0x08,0x08,0x7F}, // 72 H
-    {0x00,0x41,0x7F,0x41,0x00}, // 73 I
-    {0x20,0x40,0x41,0x3F,0x01}, // 74 J
-    {0x7F,0x08,0x14,0x22,0x41}, // 75 K
-    {0x7F,0x40,0x40,0x40,0x40}, // 76 L
-    {0x7F,0x02,0x04,0x02,0x7F}, // 77 M
-    {0x7F,0x04,0x08,0x10,0x7F}, // 78 N
-    {0x3E,0x41,0x41,0x41,0x3E}, // 79 O
-    {0x7F,0x09,0x09,0x09,0x06}, // 80 P
-    {0x3E,0x41,0x51,0x21,0x5E}, // 81 Q
-    {0x7F,0x09,0x19,0x29,0x46}, // 82 R
-    {0x46,0x49,0x49,0x49,0x31}, // 83 S
-    {0x01,0x01,0x7F,0x01,0x01}, // 84 T
-    {0x3F,0x40,0x40,0x40,0x3F}, // 85 U
-    {0x1F,0x20,0x40,0x20,0x1F}, // 86 V
-    {0x7F,0x20,0x18,0x20,0x7F}, // 87 W
-    {0x63,0x14,0x08,0x14,0x63}, // 88 X
-    {0x03,0x04,0x78,0x04,0x03}, // 89 Y
-    {0x61,0x51,0x49,0x45,0x43}, // 90 Z
-    {0x00,0x00,0x7F,0x41,0x41}, // 91 [
-    {0x02,0x04,0x08,0x10,0x20}, // 92 backslash
-    {0x41,0x41,0x7F,0x00,0x00}, // 93 ]
-    {0x04,0x02,0x01,0x02,0x04}, // 94 ^
-    {0x40,0x40,0x40,0x40,0x40}, // 95 _
-    {0x00,0x01,0x02,0x04,0x00}, // 96 `
-    {0x20,0x54,0x54,0x54,0x78}, // 97 a
-    {0x7F,0x48,0x44,0x44,0x38}, // 98 b
-    {0x38,0x44,0x44,0x44,0x20}, // 99 c
-    {0x38,0x44,0x44,0x48,0x7F}, // 100 d
-    {0x38,0x54,0x54,0x54,0x18}, // 101 e
-    {0x08,0x7E,0x09,0x01,0x02}, // 102 f
-    {0x08,0x14,0x54,0x54,0x3C}, // 103 g
-    {0x7F,0x08,0x04,0x04,0x78}, // 104 h
-    {0x00,0x44,0x7D,0x40,0x00}, // 105 i
-    {0x20,0x40,0x44,0x3D,0x00}, // 106 j
-    {0x00,0x7F,0x10,0x28,0x44}, // 107 k
-    {0x00,0x41,0x7F,0x40,0x00}, // 108 l
-    {0x7C,0x04,0x18,0x04,0x78}, // 109 m
-    {0x7C,0x08,0x04,0x04,0x78}, // 110 n
-    {0x38,0x44,0x44,0x44,0x38}, // 111 o
-    {0x7C,0x14,0x14,0x14,0x08}, // 112 p
-    {0x08,0x14,0x14,0x18,0x7C}, // 113 q
-    {0x7C,0x08,0x04,0x04,0x08}, // 114 r
-    {0x48,0x54,0x54,0x54,0x20}, // 115 s
-    {0x04,0x3F,0x44,0x40,0x20}, // 116 t
-    {0x3C,0x40,0x40,0x20,0x7C}, // 117 u
-    {0x1C,0x20,0x40,0x20,0x1C}, // 118 v
-    {0x3C,0x40,0x30,0x40,0x3C}, // 119 w
-    {0x44,0x28,0x10,0x28,0x44}, // 120 x
-    {0x0C,0x50,0x50,0x50,0x3C}, // 121 y
-    {0x44,0x64,0x54,0x4C,0x44}, // 122 z
-    {0x00,0x08,0x36,0x41,0x00}, // 123 {
-    {0x00,0x00,0x7F,0x00,0x00}, // 124 |
-    {0x00,0x41,0x36,0x08,0x00}, // 125 }
-    {0x08,0x08,0x2A,0x1C,0x08}, // 126 ~
-};
+/* Write command */
+#define SH1106_WRITECOMMAND(command)      SH1106_I2C_Write(SH1106_I2C_ADDR, 0x00, (command))
+/* Write data */
+#define SH1106_WRITEDATA(data)            SH1106_I2C_Write(SH1106_I2C_ADDR, 0x40, (data))
+/* Absolute value */
+#define ABS(x)   ((x) > 0 ? (x) : -(x))
 
+/* SH1106 data buffer */
 static uint8_t SH1106_Buffer[SH1106_WIDTH * SH1106_HEIGHT / 8];
 
-static void SH1106_WriteCommand(I2C_HandleTypeDef *hi2c, uint8_t cmd) {
-    HAL_I2C_Mem_Write(hi2c, SH1106_I2C_ADDR, 0x00, 1, &cmd, 1, 10);
+/* Private SH1106 structure */
+typedef struct {
+	uint16_t CurrentX;
+	uint16_t CurrentY;
+	uint8_t Inverted;
+	uint8_t Initialized;
+} SH1106_t;
+
+/* Private variable */
+static SH1106_t SH1106;
+
+#define SH1106_NORMALDISPLAY       0xA6
+#define SH1106_INVERTDISPLAY       0xA7
+
+/** @brief initializes display and sets background to black */
+uint8_t SH1106_Init(void) {
+	
+	/* Check if LCD connected to I2C */
+	if (HAL_I2C_IsDeviceReady(SH1106_I2C, SH1106_I2C_ADDR, 1, 20000) != HAL_OK) {
+		/* Return false */
+		return 0;
+	}
+	
+	/* A little delay */
+	uint32_t p = 2500;
+	while(p>0)
+		p--;
+	
+	  // Initialize the display
+	SH1106_WRITECOMMAND(0xAE); //display off
+	SH1106_WRITECOMMAND(0xB0|0x00); //Set Page Start Address for Page Addressing Mode,0-7
+	SH1106_WRITECOMMAND(0x81); //--set contrast control register
+	SH1106_WRITECOMMAND(0xFF); // contrast value
+	SH1106_WRITECOMMAND(0xA1); //--set segment re-map 0 to 127
+	SH1106_WRITECOMMAND(0xA6); //--set normal display
+	SH1106_WRITECOMMAND(0xA8); //--set multiplex ratio(1 to 64)
+	SH1106_WRITECOMMAND(0x3F); // multiplex value
+	SH1106_WRITECOMMAND(0xAD); // Set Pump Mode
+	SH1106_WRITECOMMAND(0x8B); // Pump ON
+	SH1106_WRITECOMMAND(0x30|0x02); // Set Pump Voltage 8.0
+	SH1106_WRITECOMMAND(0xC8); //Set COM Output Scan Direction
+	SH1106_WRITECOMMAND(0xD3); //-set display offset
+	SH1106_WRITECOMMAND(0x00); //-not offset
+	SH1106_WRITECOMMAND(0xD5); //--set display clock divide ratio/oscillator frequency
+	SH1106_WRITECOMMAND(0x80); //--set divide ratio
+	SH1106_WRITECOMMAND(0xD9); //--set pre-charge period
+	SH1106_WRITECOMMAND(0x1F); //
+	SH1106_WRITECOMMAND(0xDA); //--set com pins hardware configuration
+	SH1106_WRITECOMMAND(0x12);
+	SH1106_WRITECOMMAND(0xDB); //--set vcomh
+	SH1106_WRITECOMMAND(0x40); //
+	SH1106_WRITECOMMAND(0xAF); //--turn on SH1106 panel
+
+
+	/* Clear screen */
+	SH1106_Fill(SH1106_COLOR_BLACK);
+	
+	/* Update screen */
+	SH1106_UpdateScreen();
+	
+	/* Set default values */
+	SH1106.CurrentX = 2;
+	SH1106.CurrentY = 0;
+	
+	/* Initialized OK */
+	SH1106.Initialized = 1;
+	
+	/* Return OK */
+	return 1;
 }
 
-void SH1106_Init(I2C_HandleTypeDef *hi2c) {
-    HAL_Delay(100);
-    SH1106_WriteCommand(hi2c, 0xAE); // Display Off
-    SH1106_WriteCommand(hi2c, 0xA8); // Set MUX Ratio
-    SH1106_WriteCommand(hi2c, 0x3F);
-    SH1106_WriteCommand(hi2c, 0xD3); // Set Display Offset
-    SH1106_WriteCommand(hi2c, 0x00);
-    SH1106_WriteCommand(hi2c, 0x40); // Set Display Start Line
-    SH1106_WriteCommand(hi2c, 0xA1); // Set Segment Re-map
-    SH1106_WriteCommand(hi2c, 0xC8); // Set COM Output Scan Direction
-    SH1106_WriteCommand(hi2c, 0xDA); // Set COM Pins Hardware Config
-    SH1106_WriteCommand(hi2c, 0x12);
-    SH1106_WriteCommand(hi2c, 0x81); // Set Contrast
-    SH1106_WriteCommand(hi2c, 0x7F);
-    SH1106_WriteCommand(hi2c, 0xA4); // Disable Entire Display On
-    SH1106_WriteCommand(hi2c, 0xA6); // Set Normal Display
-    SH1106_WriteCommand(hi2c, 0xD5); // Set Osc Frequency
-    SH1106_WriteCommand(hi2c, 0x80);
-    SH1106_WriteCommand(hi2c, 0x8D); // Enable Charge Pump
-    SH1106_WriteCommand(hi2c, 0x14);
-    SH1106_WriteCommand(hi2c, 0xAF); // Display On
-    SH1106_Fill(0);
-    SH1106_UpdateScreen(hi2c);
+/** @brief flushes buffer to display to display data */
+void SH1106_UpdateScreen(void) {
+	uint8_t m;
+	
+	for (m = 0; m < 8; m++) {
+		SH1106_WRITECOMMAND(0xB0 + m);
+		SH1106_WRITECOMMAND(0x00);
+		SH1106_WRITECOMMAND(0x10);
+		
+		/* Write multi data */
+		SH1106_I2C_WriteMulti(SH1106_I2C_ADDR, 0x40, &SH1106_Buffer[SH1106_WIDTH * m], SH1106_WIDTH);
+	}
 }
 
-void SH1106_Fill(uint8_t color) {
-    memset(SH1106_Buffer, (color ? 0xFF : 0x00), sizeof(SH1106_Buffer));
+/** @brief inverts display, changes black to white and vice versa */
+void SH1106_ToggleInvert(void) {
+	uint16_t i;
+	
+	/* Toggle invert */
+	SH1106.Inverted = !SH1106.Inverted;
+	
+	/* Do memory toggle */
+	for (i = 0; i < sizeof(SH1106_Buffer); i++) {
+		SH1106_Buffer[i] = ~SH1106_Buffer[i];
+	}
 }
 
-void SH1106_DrawPixel(uint8_t x, uint8_t y, uint8_t color) {
-    if (x >= SH1106_WIDTH || y >= SH1106_HEIGHT) return;
-    if (color)
-        SH1106_Buffer[x + (y / 8) * SH1106_WIDTH] |= (1 << (y % 8));
-    else
-        SH1106_Buffer[x + (y / 8) * SH1106_WIDTH] &= ~(1 << (y % 8));
+/** @brief fills entire display with color (b/w) */
+void SH1106_Fill(SH1106_COLOR_t color) {
+	/* Set memory */
+	memset(SH1106_Buffer, (color == SH1106_COLOR_BLACK) ? 0x00 : 0xFF, sizeof(SH1106_Buffer));
 }
 
-void SH1106_WriteChar(uint8_t x, uint8_t y, char ch, uint8_t size) {
-    if (ch < 32 || ch > 126) ch = '?';
-    const uint8_t *glyph = Font5x7[ch - 32];
+/** @brief sets a pixel defined by x and y */
+void SH1106_DrawPixel(uint16_t x, uint16_t y, SH1106_COLOR_t color) {
+	if (
+		x >= SH1106_WIDTH ||
+		y >= SH1106_HEIGHT
+	) {
+		/* Error */
+		return;
+	}
+	
+	/* Check if pixels are inverted */
+	if (SH1106.Inverted) {
+		color = (SH1106_COLOR_t)!color;
+	}
+	
+	/* Set color */
+	if (color == SH1106_COLOR_WHITE) {
+		SH1106_Buffer[x + (y / 8) * SH1106_WIDTH] |= 1 << (y % 8);
+	} else {
+		SH1106_Buffer[x + (y / 8) * SH1106_WIDTH] &= ~(1 << (y % 8));
+	}
+}
 
-    for (uint8_t col = 0; col < 5; col++) {
-        uint8_t line = glyph[col];
-        for (uint8_t row = 0; row < 7; row++) {
-            uint8_t pixel = (line >> row) & 0x01;
-            if (size == 1) {
-                SH1106_DrawPixel(x + col, y + row, pixel);
-            } else {
-                /* Scale up: each source pixel becomes a size x size block */
-                for (uint8_t sy = 0; sy < size; sy++) {
-                    for (uint8_t sx = 0; sx < size; sx++) {
-                        SH1106_DrawPixel(
-                            x + col * size + sx,
-                            y + row * size + sy,
-                            pixel
-                        );
-                    }
-                }
+/** @brief sets cursor at a location defined by x and y */
+void SH1106_GotoXY(uint16_t x, uint16_t y) {
+	/* Set write pointers */
+	SH1106.CurrentX = x;
+	SH1106.CurrentY = y;
+}
+
+/** @brief prints a single character on the display with font and color at x, y */
+char SH1106_Putc(char ch, FontDef_t* Font, SH1106_COLOR_t color) {
+	uint32_t i, b, j;
+	
+	/* Check available space in LCD */
+	if (
+		SH1106_WIDTH <= (SH1106.CurrentX + Font->FontWidth) ||
+		SH1106_HEIGHT <= (SH1106.CurrentY + Font->FontHeight)
+	) {
+		/* Error */
+		return 0;
+	}
+	
+	/* Go through font */
+	for (i = 0; i < Font->FontHeight; i++) {
+		b = Font->data[(ch - 32) * Font->FontHeight + i];
+		for (j = 0; j < Font->FontWidth; j++) {
+			if ((b << j) & 0x8000) {
+				SH1106_DrawPixel(SH1106.CurrentX + j, (SH1106.CurrentY + i), (SH1106_COLOR_t) color);
+			} else {
+				SH1106_DrawPixel(SH1106.CurrentX + j, (SH1106.CurrentY + i), (SH1106_COLOR_t)!color);
+			}
+		}
+	}
+	
+	/* Increase pointer */
+	SH1106.CurrentX += Font->FontWidth;
+	
+	/* Return character written */
+	return ch;
+}
+
+/** @brief prints a string to the display with font and color at x, y */
+char SH1106_Puts(char* str, FontDef_t* Font, SH1106_COLOR_t color) {
+	/* Write characters */
+	while (*str) {
+		/* Write character by character */
+		if (SH1106_Putc(*str, Font, color) != *str) {
+			/* Return error */
+			return *str;
+		}
+		
+		/* Increase string pointer */
+		str++;
+	}
+	
+	/* Everything OK, zero should be returned */
+	return *str;
+}
+ 
+
+void SH1106_DrawLine(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, SH1106_COLOR_t c) {
+	int16_t dx, dy, sx, sy, err, e2, i, tmp; 
+	
+	/* Check for overflow */
+	if (x0 >= SH1106_WIDTH) {
+		x0 = SH1106_WIDTH - 1;
+	}
+	if (x1 >= SH1106_WIDTH) {
+		x1 = SH1106_WIDTH - 1;
+	}
+	if (y0 >= SH1106_HEIGHT) {
+		y0 = SH1106_HEIGHT - 1;
+	}
+	if (y1 >= SH1106_HEIGHT) {
+		y1 = SH1106_HEIGHT - 1;
+	}
+	
+	dx = (x0 < x1) ? (x1 - x0) : (x0 - x1); 
+	dy = (y0 < y1) ? (y1 - y0) : (y0 - y1); 
+	sx = (x0 < x1) ? 1 : -1; 
+	sy = (y0 < y1) ? 1 : -1; 
+	err = ((dx > dy) ? dx : -dy) / 2; 
+
+	if (dx == 0) {
+		if (y1 < y0) {
+			tmp = y1;
+			y1 = y0;
+			y0 = tmp;
+		}
+		
+		if (x1 < x0) {
+			tmp = x1;
+			x1 = x0;
+			x0 = tmp;
+		}
+		
+		/* Vertical line */
+		for (i = y0; i <= y1; i++) {
+			SH1106_DrawPixel(x0, i, c);
+		}
+		
+		/* Return from function */
+		return;
+	}
+	
+	if (dy == 0) {
+		if (y1 < y0) {
+			tmp = y1;
+			y1 = y0;
+			y0 = tmp;
+		}
+		
+		if (x1 < x0) {
+			tmp = x1;
+			x1 = x0;
+			x0 = tmp;
+		}
+		
+		/* Horizontal line */
+		for (i = x0; i <= x1; i++) {
+			SH1106_DrawPixel(i, y0, c);
+		}
+		
+		/* Return from function */
+		return;
+	}
+	
+	while (1) {
+		SH1106_DrawPixel(x0, y0, c);
+		if (x0 == x1 && y0 == y1) {
+			break;
+		}
+		e2 = err; 
+		if (e2 > -dx) {
+			err -= dy;
+			x0 += sx;
+		} 
+		if (e2 < dy) {
+			err += dx;
+			y0 += sy;
+		} 
+	}
+}
+
+void SH1106_DrawRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, SH1106_COLOR_t c) {
+	/* Check input parameters */
+	if (
+		x >= SH1106_WIDTH ||
+		y >= SH1106_HEIGHT
+	) {
+		/* Return error */
+		return;
+	}
+	
+	/* Check width and height */
+	if ((x + w) >= SH1106_WIDTH) {
+		w = SH1106_WIDTH - x;
+	}
+	if ((y + h) >= SH1106_HEIGHT) {
+		h = SH1106_HEIGHT - y;
+	}
+	
+	/* Draw 4 lines */
+	SH1106_DrawLine(x, y, x + w, y, c);         /* Top line */
+	SH1106_DrawLine(x, y + h, x + w, y + h, c); /* Bottom line */
+	SH1106_DrawLine(x, y, x, y + h, c);         /* Left line */
+	SH1106_DrawLine(x + w, y, x + w, y + h, c); /* Right line */
+}
+
+void SH1106_DrawFilledRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, SH1106_COLOR_t c) {
+	uint8_t i;
+	
+	/* Check input parameters */
+	if (
+		x >= SH1106_WIDTH ||
+		y >= SH1106_HEIGHT
+	) {
+		/* Return error */
+		return;
+	}
+	
+	/* Check width and height */
+	if ((x + w) >= SH1106_WIDTH) {
+		w = SH1106_WIDTH - x;
+	}
+	if ((y + h) >= SH1106_HEIGHT) {
+		h = SH1106_HEIGHT - y;
+	}
+	
+	/* Draw lines */
+	for (i = 0; i <= h; i++) {
+		/* Draw lines */
+		SH1106_DrawLine(x, y + i, x + w, y + i, c);
+	}
+}
+
+void SH1106_DrawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, SH1106_COLOR_t color) {
+	/* Draw lines */
+	SH1106_DrawLine(x1, y1, x2, y2, color);
+	SH1106_DrawLine(x2, y2, x3, y3, color);
+	SH1106_DrawLine(x3, y3, x1, y1, color);
+}
+
+
+void SH1106_DrawFilledTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, SH1106_COLOR_t color) {
+	int16_t deltax = 0, deltay = 0, x = 0, y = 0, xinc1 = 0, xinc2 = 0, 
+	yinc1 = 0, yinc2 = 0, den = 0, num = 0, numadd = 0, numpixels = 0, 
+	curpixel = 0;
+	
+	deltax = ABS(x2 - x1);
+	deltay = ABS(y2 - y1);
+	x = x1;
+	y = y1;
+
+	if (x2 >= x1) {
+		xinc1 = 1;
+		xinc2 = 1;
+	} else {
+		xinc1 = -1;
+		xinc2 = -1;
+	}
+
+	if (y2 >= y1) {
+		yinc1 = 1;
+		yinc2 = 1;
+	} else {
+		yinc1 = -1;
+		yinc2 = -1;
+	}
+
+	if (deltax >= deltay){
+		xinc1 = 0;
+		yinc2 = 0;
+		den = deltax;
+		num = deltax / 2;
+		numadd = deltay;
+		numpixels = deltax;
+	} else {
+		xinc2 = 0;
+		yinc1 = 0;
+		den = deltay;
+		num = deltay / 2;
+		numadd = deltax;
+		numpixels = deltay;
+	}
+
+	for (curpixel = 0; curpixel <= numpixels; curpixel++) {
+		SH1106_DrawLine(x, y, x3, y3, color);
+
+		num += numadd;
+		if (num >= den) {
+			num -= den;
+			x += xinc1;
+			y += yinc1;
+		}
+		x += xinc2;
+		y += yinc2;
+	}
+}
+
+void SH1106_DrawCircle(int16_t x0, int16_t y0, int16_t r, SH1106_COLOR_t c) {
+	int16_t f = 1 - r;
+	int16_t ddF_x = 1;
+	int16_t ddF_y = -2 * r;
+	int16_t x = 0;
+	int16_t y = r;
+
+    SH1106_DrawPixel(x0, y0 + r, c);
+    SH1106_DrawPixel(x0, y0 - r, c);
+    SH1106_DrawPixel(x0 + r, y0, c);
+    SH1106_DrawPixel(x0 - r, y0, c);
+
+    while (x < y) {
+        if (f >= 0) {
+            y--;
+            ddF_y += 2;
+            f += ddF_y;
+        }
+        x++;
+        ddF_x += 2;
+        f += ddF_x;
+
+        SH1106_DrawPixel(x0 + x, y0 + y, c);
+        SH1106_DrawPixel(x0 - x, y0 + y, c);
+        SH1106_DrawPixel(x0 + x, y0 - y, c);
+        SH1106_DrawPixel(x0 - x, y0 - y, c);
+
+        SH1106_DrawPixel(x0 + y, y0 + x, c);
+        SH1106_DrawPixel(x0 - y, y0 + x, c);
+        SH1106_DrawPixel(x0 + y, y0 - x, c);
+        SH1106_DrawPixel(x0 - y, y0 - x, c);
+    }
+}
+
+void SH1106_DrawFilledCircle(int16_t x0, int16_t y0, int16_t r, SH1106_COLOR_t c) {
+	int16_t f = 1 - r;
+	int16_t ddF_x = 1;
+	int16_t ddF_y = -2 * r;
+	int16_t x = 0;
+	int16_t y = r;
+
+    SH1106_DrawPixel(x0, y0 + r, c);
+    SH1106_DrawPixel(x0, y0 - r, c);
+    SH1106_DrawPixel(x0 + r, y0, c);
+    SH1106_DrawPixel(x0 - r, y0, c);
+    SH1106_DrawLine(x0 - r, y0, x0 + r, y0, c);
+
+    while (x < y) {
+        if (f >= 0) {
+            y--;
+            ddF_y += 2;
+            f += ddF_y;
+        }
+        x++;
+        ddF_x += 2;
+        f += ddF_x;
+
+        SH1106_DrawLine(x0 - x, y0 + y, x0 + x, y0 + y, c);
+        SH1106_DrawLine(x0 + x, y0 - y, x0 - x, y0 - y, c);
+
+        SH1106_DrawLine(x0 + y, y0 + x, x0 - y, y0 + x, c);
+        SH1106_DrawLine(x0 + y, y0 - x, x0 - y, y0 - x, c);
+    }
+}
+ 
+
+/** @brief fills entire display with black color */
+void SH1106_Clear (void)
+{
+	SH1106_Fill (0);
+    SH1106_UpdateScreen();
+}
+
+/** @brief turn the display on */
+void SH1106_ON(void) {
+	SH1106_WRITECOMMAND(0x8D);
+	SH1106_WRITECOMMAND(0x14);
+	SH1106_WRITECOMMAND(0xAF);
+}
+
+/** @brief turn the display off */
+void SH1106_OFF(void) {
+	SH1106_WRITECOMMAND(0x8D);
+	SH1106_WRITECOMMAND(0x10);
+	SH1106_WRITECOMMAND(0xAE);
+}
+
+void SH1106_I2C_WriteMulti(uint8_t address, uint8_t reg, uint8_t* data, uint16_t count) {
+uint8_t dt[256];
+dt[0] = reg;
+uint8_t i;
+for(i = 0; i < count; i++)
+dt[i+1] = data[i];
+HAL_I2C_Master_Transmit(SH1106_I2C, address, dt, count+1, 10);
+}
+
+void SH1106_I2C_Write(uint8_t address, uint8_t reg, uint8_t data) {
+	uint8_t dt[2];
+	dt[0] = reg;
+	dt[1] = data;
+	HAL_I2C_Master_Transmit(SH1106_I2C, address, dt, 2, 10);
+}
+
+/** @brief inverts the display as per the parameter (0=blck bg, white text, otherwise white bg, blck text) */
+void SH1106_InvertDisplay (int i)
+{
+  if (i) SH1106_WRITECOMMAND (SH1106_INVERTDISPLAY);
+
+  else SH1106_WRITECOMMAND (SH1106_NORMALDISPLAY);
+
+}
+
+/** @brief draws a bitmap at x, y */
+void SH1106_DrawBitmap(int16_t x, int16_t y, const unsigned char* bitmap, int16_t w, int16_t h, uint16_t color)
+{
+
+    int16_t byteWidth = (w + 7) / 8; // Bitmap scanline pad = whole byte
+    uint8_t byte = 0;
+
+    for(int16_t j=0; j<h; j++, y++)
+    {
+        for(int16_t i=0; i<w; i++)
+        {
+            if(i & 7)
+            {
+               byte <<= 1;
             }
+            else
+            {
+               byte = (*(const unsigned char *)(&bitmap[j * byteWidth + i / 8]));
+            }
+            if(byte & 0x80) SH1106_DrawPixel(x+i, y, color);
         }
-    }
-}
-
-void SH1106_WriteString(uint8_t x, uint8_t y, const char *str, uint8_t size) {
-    uint8_t x_pos = x;
-    /* Each character is 5 pixels wide + 1 pixel gap, scaled by size */
-    uint8_t char_width = 6 * size;
-
-    while (*str) {
-        if (x_pos + char_width > SH1106_WIDTH) {
-            /* Wrap to next line */
-            x_pos = x;
-            y += 8 * size;
-            if (y + 7 * size > SH1106_HEIGHT) break;
-        }
-        SH1106_WriteChar(x_pos, y, *str, size);
-        x_pos += char_width;
-        str++;
-    }
-}
-
-void SH1106_UpdateScreen(I2C_HandleTypeDef *hi2c) {
-    for (uint8_t i = 0; i < 8; i++) {
-        SH1106_WriteCommand(hi2c, 0xB0 + i);
-        SH1106_WriteCommand(hi2c, 0x00 + (SH1106_COLUMN_OFFSET & 0x0F));
-        SH1106_WriteCommand(hi2c, 0x10 + ((SH1106_COLUMN_OFFSET >> 4) & 0x0F));
-        HAL_I2C_Mem_Write(hi2c, SH1106_I2C_ADDR, 0x40, 1,
-                          &SH1106_Buffer[SH1106_WIDTH * i], SH1106_WIDTH, 100);
     }
 }
