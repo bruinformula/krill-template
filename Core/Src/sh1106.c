@@ -1,7 +1,6 @@
 /**
  * original author:  Tilen Majerle<tilen@majerle.eu>
  * modification for SH1106: ControllersTech (www.controllerstech.com)
- * modified: Krishay Bhople
 
    ----------------------------------------------------------------------
    	Copyright (C) Alexander Lutsai, 2016
