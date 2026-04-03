@@ -1,25 +1,3 @@
-/**
- * original author:  Tilen Majerle<tilen@majerle.eu>
- * modification for SH1106: Controllerstech (www.controllerstech.com)
-
-   ----------------------------------------------------------------------
-   	Copyright (C) Alexander Lutsai, 2016
-    Copyright (C) Tilen Majerle, 2015
-    
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    any later version.
-     
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-    
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-   ----------------------------------------------------------------------
- */
 #ifndef SH1106_H
 #define SH1106_H
 
@@ -47,7 +25,25 @@ SDA        |PB7          |Serial data line
 
 #include "main.h"
 
-#include "fonts.h"
+
+/* ===== Font Definitions (merged from fonts.h) ===== */
+
+typedef struct {
+	uint8_t FontWidth;
+	uint8_t FontHeight;
+	const uint16_t *data;
+} FontDef_t;
+
+typedef struct {
+	uint16_t Length;
+	uint16_t Height;
+} FONTS_SIZE_t;
+
+extern FontDef_t Font_7x10;
+extern FontDef_t Font_11x18;
+extern FontDef_t Font_16x26;
+
+char* FONTS_GetStringSize(char* str, FONTS_SIZE_t* SizeStruct, FontDef_t* Font);
 
 #include "stdlib.h"
 #include "string.h"
@@ -220,6 +216,38 @@ void SH1106_DrawCircle(int16_t x0, int16_t y0, int16_t r, SH1106_COLOR_t c);
  */
 void SH1106_DrawFilledCircle(int16_t x0, int16_t y0, int16_t r, SH1106_COLOR_t c);
 
+/* ===== DMA Support ===== */
+
+#define SH1106_PAGES     (SH1106_HEIGHT / 8)  /* 8 pages × 8 rows = 64 pixel rows */
+#define SH1106_CHAR_W    6                     /* 5-pixel glyph + 1-pixel gap       */
+#define SH1106_COLS      (SH1106_WIDTH / SH1106_CHAR_W)  /* 21 */
+#define SH1106_ROWS      SH1106_PAGES                    /* 8  */
+
+/**
+ * @brief  Updates buffer from internal RAM to LCD using DMA (non-blocking).
+ *         Draw into the framebuffer with the normal Draw/Put functions,
+ *         then call this instead of SH1106_UpdateScreen() for async transfer.
+ */
+void SH1106_UpdateScreenDMA(void);
+
+/**
+ * @brief  Draws a string using a built-in compact 5×8 font via DMA.
+ *         Bypasses the framebuffer — writes directly to GRAM.
+ * @param  x  Character column  (0 – SH1106_COLS-1)
+ * @param  y  Character row     (0 – SH1106_ROWS-1)
+ * @param  str  Null-terminated ASCII string
+ */
+void SH1106_DrawString(uint8_t x, uint8_t y, const char *str);
+
+/**
+ * @brief  Returns 1 while DMA transfers are still queued / in-progress.
+ */
+uint8_t SH1106_IsBusy(void);
+
+/**
+ * @brief  Blocks until every queued DMA transfer has completed (max 2 s timeout).
+ */
+void SH1106_Flush(void);
 
 
 #ifndef SH1106_I2C_TIMEOUT
@@ -305,5 +333,9 @@ void SH1106_Clear (void);
 #ifdef __cplusplus
 }
 #endif
+
+
+/* ===== Bitmap (defined in sh1106.c) ===== */
+extern const uint8_t bfr_logo[];
 
 #endif

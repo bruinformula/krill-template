@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "dma.h"
 #include "fdcan.h"
 #include "i2c.h"
 #include "icache.h"
@@ -27,9 +28,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "SH1106.h"
-#include "bitmap.h"
-#include "fonts.h"
+#include "sh1106.h"
 #include <string.h>
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -72,6 +71,15 @@ uint8_t TxData[4];
 uint32_t last_can_tx_time = 0;
 uint32_t last_display_time = 0;
 
+typedef struct {
+  uint32_t sensor_ns;
+  uint32_t dma_ns;
+  uint32_t oled_ns;
+} perfstats;
+
+perfstats my_perfstats;
+uint32_t startTime = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,6 +108,7 @@ void SetCurrent(float adc_voltage) {
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
   if (hadc->Instance == ADC1) {
     adc_ready = 1;
+    my_perfstats.dma_ns = HAL_GetTick() - startTime;
   }
 }
 /* USER CODE END 0 */
@@ -133,6 +142,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_FDCAN1_Init();
   MX_USART2_UART_Init();
   MX_ADC1_Init();
@@ -153,7 +163,8 @@ int main(void)
   SH1106_GotoXY(2, 0);
   SH1106_Puts("Initializing...", &Font_7x10, 1);
   SH1106_DrawBitmap(2, 15, bfr_logo, 64, 64, 1);
-  SH1106_UpdateScreen();
+  SH1106_UpdateScreenDMA();
+  SH1106_Flush();
   HAL_Delay(1000);
   SH1106_Clear();
   /* USER CODE END 2 */
@@ -164,17 +175,20 @@ int main(void)
   {
     if (adc_ready) {
       adc_ready = 0;
+      startTime = HAL_GetTick();
       voltage = ReadADC();
       SetCurrent(voltage);
       uint32_t now = HAL_GetTick();
 
       if ((now - last_display_time) >= DISPLAY_UPDATE_MS) {
           last_display_time = now;
-          char buffer[20];
+          SH1106_Flush();  // ensure previous DMA transfer is done
+          SH1106_Fill(SH1106_COLOR_BLACK);  // clear framebuffer
+          char buffer[22];
           snprintf(buffer, sizeof(buffer), "Current: %.2f A", current);
           SH1106_GotoXY(2, 0);
           SH1106_Puts(buffer, &Font_7x10, 1);
-          SH1106_UpdateScreen();
+          SH1106_UpdateScreenDMA();  // non-blocking
       }
 
       if ((now - last_can_tx_time) >= CAN_TX_INTERVAL_MS) {
@@ -211,14 +225,13 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_MSI;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLM = 1;
   RCC_OscInitStruct.PLL.PLLN = 55;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
