@@ -158,6 +158,7 @@ static int8_t CDC_Init_FS(void)
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, UserRxBufferFS);
 
   USB_Driver_Init();
+  USB_Driver_SetConfigured(false);
 
   return (USBD_OK);
   /* USER CODE END 3 */
@@ -170,6 +171,7 @@ static int8_t CDC_Init_FS(void)
 static int8_t CDC_DeInit_FS(void)
 {
   /* USER CODE BEGIN 4 */
+  USB_Driver_SetConfigured(false);
   return (USBD_OK);
   /* USER CODE END 4 */
 }
@@ -232,6 +234,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
     break;
 
     case CDC_SET_CONTROL_LINE_STATE:
+    	USB_Driver_SetConfigured(true);
 
     break;
 
