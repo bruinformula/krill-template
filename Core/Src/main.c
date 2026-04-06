@@ -195,7 +195,8 @@ int main(void)
 
       if ((now - last_can_tx_time) >= CAN_TX_INTERVAL_MS) {
         last_can_tx_time = now;
-        memcpy(TxData, &current, 4);
+        float current_snapshot = current;
+        memcpy(TxData, &current_snapshot, sizeof(current_snapshot));
         HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, TxData);
       }
 
