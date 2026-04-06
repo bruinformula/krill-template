@@ -30,6 +30,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "sh1106.h"
+#include "usb_driver.h"
 #include <string.h>
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -71,6 +72,7 @@ FDCAN_TxHeaderTypeDef TxHeader;
 uint8_t TxData[4];
 uint32_t last_can_tx_time = 0;
 uint32_t last_display_time = 0;
+uint32_t last_usb_tx_time = 0;
 
 typedef struct {
   uint32_t sensor_ns;
@@ -198,6 +200,14 @@ int main(void)
         float current_snapshot = current;
         memcpy(TxData, &current_snapshot, sizeof(current_snapshot));
         HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, TxData);
+      }
+
+      if (USB_Driver_IsConfigured() && ((now - last_usb_tx_time) >= 1000U)) {
+        last_usb_tx_time = now;
+
+        char usb_buffer[64];
+        snprintf(usb_buffer, sizeof(usb_buffer), "Current: %.2f A\r\n", current);
+        USB_Driver_WriteString(usb_buffer);
       }
 
       time += 1;

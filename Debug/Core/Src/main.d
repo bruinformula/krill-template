@@ -40,7 +40,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Core/Inc/fdcan.h ../Core/Inc/i2c.h ../Core/Inc/icache.h \
  ../Core/Inc/usart.h ../USB_Device/App/usb_device.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_def.h \
- ../USB_Device/Target/usbd_conf.h ../Core/Inc/gpio.h ../Core/Inc/sh1106.h
+ ../USB_Device/Target/usbd_conf.h ../Core/Inc/gpio.h ../Core/Inc/sh1106.h \
+ ../Drivers/BFR_Krill_Drivers/Inc/usb_driver.h
 ../Core/Inc/main.h:
 ../Drivers/STM32L5xx_HAL_Driver/Inc/stm32l5xx_hal.h:
 ../Core/Inc/stm32l5xx_hal_conf.h:
@@ -91,3 +92,4 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../USB_Device/Target/usbd_conf.h:
 ../Core/Inc/gpio.h:
 ../Core/Inc/sh1106.h:
+../Drivers/BFR_Krill_Drivers/Inc/usb_driver.h:
