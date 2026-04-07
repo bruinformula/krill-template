@@ -66,7 +66,7 @@ main-build: currentSensorv3.elf secondary-outputs
 
 # Tool invocations
 currentSensorv3.elf currentSensorv3.map: $(OBJS) $(USER_OBJS) /Users/omidj/Documents/Projects/Code\ Projects/krill-template/STM32L552CCTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "currentSensorv3.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m33 -T"/Users/omidj/Documents/Projects/Code Projects/krill-template/STM32L552CCTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="currentSensorv3.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+	arm-none-eabi-gcc -o "currentSensorv3.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m33 -T"/Users/omidj/Documents/Projects/Code Projects/krill-template/STM32L552CCTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="currentSensorv3.map" -Wl,--gc-sections -static -u _printf_float --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

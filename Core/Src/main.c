@@ -206,7 +206,9 @@ int main(void)
         last_usb_tx_time = now;
 
         char usb_buffer[64];
-        snprintf(usb_buffer, sizeof(usb_buffer), "Current: %.2f A\r\n", current);
+        snprintf(usb_buffer, sizeof(usb_buffer),
+                 "ADC: %.3f V  Current: %.2f A\r\n",
+                 voltage, current);
         USB_Driver_WriteString(usb_buffer);
       }
 
